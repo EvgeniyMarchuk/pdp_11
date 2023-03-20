@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <assert.h>
+#include <string.h>
 
 #define MEMSIZE (64*1024)
 
@@ -16,15 +17,23 @@ void w_write (address adr, word val);
 word w_read (address adr);
 
 void load_data();
-void mem_dump(address adr, int size);
+void mem_dump(address adr, unsigned int size);
+
+void load_file(char *name_file);
 
 void test_mem();
 
-int main()
+int main(int argc, char *argv[])
 {	
-	//test_mem();
-	
-	load_data();
+	if (argc == 1)
+	{
+		printf("Data will read from console\n");
+		load_data();
+	}
+	else if (strcmp(argv[1],"-t") == 0)
+		load_file(argv[argc-1]);
+	else
+		printf("Incorrect program launch");
 	
     return 0;
 }
@@ -83,15 +92,41 @@ void load_data()
 	}
 }
 
-void mem_dump(address adr, int size)
+void mem_dump(address adr, unsigned int size)
 {
 	for (unsigned int i = 0; i < size/2; i++)
 	{
 		word res = w_read(adr);
 		
-		printf("%06o: %06o %04x", adr, res, res);
+		printf("%06o: %06o %04x\n", adr, res, res);
 		adr += 2;
 	}
+}
+
+void load_file(char *name_file)
+{	
+	FILE *data_file = fopen(name_file, "r");
+	
+	if (data_file == NULL)
+		perror("Ошибка открытия файла");
+	
+	address adr_in_mem = 0;
+	unsigned char N = 0;
+	
+	while (fscanf(data_file, "%hx %hhx", &adr_in_mem, &N) == 2)  
+	{
+		for (unsigned char i = 0; i < N; i++)
+		{
+			byte num;
+			fscanf(data_file, "%hhx", &num);
+			
+			b_write(adr_in_mem, num);
+			
+			adr_in_mem++;
+		}
+	}
+	
+	fclose(data_file);
 }
 
 void test_mem()
@@ -146,3 +181,8 @@ void test_mem()
     fprintf(stderr, "a=%06o b1=%02hhx b0=%02hhx wres=%04x \n", a, b1, b0, wres);
     assert(w == wres);
 }
+
+/*void test_load(char *name_file)
+{
+	;
+}*/
