@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #define MEMSIZE (64*1024)
 #define SIZE 100
@@ -14,13 +15,17 @@ typedef word address;
 enum level{
 	DEBUG,
 	TRACE,
+	TESTS,
 	INFO,
 	ERROR
 };
 
-unsigned int log_level = INFO;
+unsigned int log_level = TESTS;
 
 word mem[MEMSIZE];
+
+word reg[8];    
+
 
 void b_write (address adr, byte val);
 byte b_read (address adr);
@@ -28,16 +33,18 @@ byte b_read (address adr);
 void w_write (address adr, word val);
 word w_read (address adr);
 
-void load_data();
+void load_data(char *name_file);
 void mem_dump(address adr, unsigned int size);
 
-void load_file(char *name_file);
+//void load_file(char *name_file);
 
 void Log(unsigned int level, char *str, ...);
 unsigned int set_log_level(unsigned int level);
 
-void test_mem();
-void test_file();
+int is_hexnumber(unsigned char num);
+
+int test_mem();
+int test_file();
 
 
 
@@ -47,13 +54,16 @@ int main(int argc, char *argv[])
 {	
 	if (argc == 1)
 	{
-		Log(log_level, "Data will read from console, if you want read from file, please, write -t after ./a.out\n");
-		load_data();
+		Log(INFO, "\nData will read from console, if you want read from file, please, write -t and name of file after ./a.out\n");
+		load_data("console");
 	}
 	else if (strcmp(argv[1],"-t") == 0)
-		load_file(argv[argc-1]);
+		load_data(argv[argc-1]);
 	else
-		Log(log_level, "Incorrect program launch");
+		Log(INFO, "\nIncorrect program launch\n");
+	
+	if (TESTS >= log_level)
+		Log(TESTS, "Test!", test_mem());
 	
     return 0;
 }
@@ -98,17 +108,37 @@ word w_read(address adr)
 
 
 
-void load_data()
+void load_data(char *name_file)
 {
 	address adr_in_mem = 0;
 	unsigned char N = 0;
 	
-	while (fscanf(stdin, "%hx %hhx", &adr_in_mem, &N) == 2)  
+	FILE *data_file = NULL;
+	
+	if (strcmp(name_file, "console") == 0)
+		data_file = stdin;
+	else
+	{
+		data_file = fopen(name_file, "r");
+		
+		if (data_file == NULL)
+		{
+			perror("\nError, can't open the file\n");
+			exit(1);
+		}
+	}
+	
+	while (fscanf(data_file, "%hx %hhx", &adr_in_mem, &N) == 2)  
 	{
 		for (unsigned char i = 0; i < N; i++)
 		{
 			byte num;
-			scanf("%hhx", &num);
+			
+			if (1 != fscanf(data_file, "%hhx", &num))
+			{
+				Log(ERROR, "Error type reading\n");
+				exit(3);
+			}	
 			
 			b_write(adr_in_mem, num);
 			
@@ -123,38 +153,11 @@ void mem_dump(address adr, unsigned int size)
 	{
 		word res = w_read(adr);
 		
-		Log(log_level, "%06o: %06o %04x\n", adr, res, res);
+		Log(INFO, "%06o: %06o %04x\n", adr, res, res);
 		adr += 2;
 	}
 }
 
-void load_file(char *name_file)
-{	
-	FILE *data_file = fopen(name_file, "r");
-	
-	if (data_file == NULL)
-	{
-		perror("Ошибка открытия файла");
-		exit(1);
-	}
-	address adr_in_mem = 0;
-	unsigned char N = 0;
-	
-	while (fscanf(data_file, "%hx %hhx", &adr_in_mem, &N) == 2)  
-	{
-		for (unsigned char i = 0; i < N; i++)
-		{
-			byte num;
-			fscanf(data_file, "%hhx", &num);
-			
-			b_write(adr_in_mem, num);
-			
-			adr_in_mem++;
-		}
-	}
-	
-	fclose(data_file);
-}
 
 
 
@@ -185,8 +188,22 @@ unsigned int set_log_level(unsigned int level)
 
 
 
+int is_hexnumber(unsigned char num)               //НАДО СДЕЛАТЬ НОРМАЛЬНОЙ
+{
+	FILE *p_file = fopen("is_hex.txt", "w");
+	
+	fprintf(p_file, "%hhx", num);
+	
+	fclose(p_file);
+	
+	return 1;
+}
 
-void test_mem()
+
+
+
+
+int test_mem()
 {
     address a;
     byte b0, b1, bres;
@@ -237,9 +254,30 @@ void test_mem()
     // тут полезно написать отладочную печать a, w, wres
     fprintf(stderr, "a=%06o b1=%02hhx b0=%02hhx wres=%04x \n", a, b1, b0, wres);
     assert(w == wres);
+	
+	
+	//пишем слово, читаем 2 байта
+	a = 4;
+	w = 0x1234;
+	
+	byte bres0 = 0x34;
+	byte bres1 = 0x12;
+	
+	w_write(a, w);
+	b0 = b_read(a);
+	b1 = b_read(a+1);
+	Log(TESTS, "пишем слово, чиатем 2 байта\n");
+	Log(TESTS, "a=%06o b1=%02hhx b0=%02hhx wres=%04x \n", a, b1, b0, w);
+	assert(b0 == bres0);
+	assert(b1 == bres1);
+	
+	return 0;
 }
 
-void test_file()
+int test_file()
 {
-	mem_dump(66, 2);
+	load_data("TryBreakPDP.txt");
+	mem_dump(64, 4);
+	
+	return 0;
 }
